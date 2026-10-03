@@ -64,10 +64,10 @@ http://localhost:8501
 
 ## 📚 Projeto acadêmico
 
-**Instituição:** [Institito Federal de Pernambuco]  
-**Curso:** [Tecnologia em Sistemas para Internet]  
-**Disciplina:** [Recuperação da Informação]  
-**Professor:** [Allan Lima]
+**Instituição:** Institito Federal de Pernambuco  
+**Curso:** Tecnologia em Sistemas para Internet  
+**Disciplina:** Recuperação da Informação  
+**Professor:** Allan Lima
 
 ---
 
