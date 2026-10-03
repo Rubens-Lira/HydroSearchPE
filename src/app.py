@@ -1,68 +1,349 @@
+import re
+
 import streamlit as st
-from crawler import APACrawler
+
+from extractor import extrair_boletins
 from indexer import Indexador
 from searcher import Buscador
 
-# Configuração da página do Streamlit
+
+# =========================================================
+# CONFIGURAÇÃO DA PÁGINA
+# =========================================================
+
 st.set_page_config(
-    page_title="APAC Search - Motor de Busca",
+    page_title="HydroSearchPE",
     page_icon="💧",
-    layout="wide"
+    layout="centered"
 )
 
-# Carregamento e indexação inicial (usando cache para otimizar)
+
+# =========================================================
+# INICIALIZAÇÃO DO SISTEMA
+# =========================================================
+
 @st.cache_resource
 def inicializar_sistema():
-    crawler = APACrawler()
+
     indexador = Indexador()
-    
-    # Carrega e indexa os boletins simulados (ou futuros PDFs)
-    boletins = crawler.simular_coleta_boletins()
-    for b in boletins:
-        indexador.adicionar_documento(b["doc_id"], b["texto"])
-        
+
+    boletins = extrair_boletins()
+
+    for doc_id, boletim in enumerate(
+        boletins,
+        start=1
+    ):
+
+        indexador.adicionar_documento(
+            doc_id=doc_id,
+            texto=boletim["texto"],
+            titulo=boletim["titulo"],
+            arquivo=boletim["arquivo"]
+        )
+
+        boletim["doc_id"] = doc_id
+
     buscador = Buscador(indexador)
+
     return indexador, buscador, boletins
+
 
 indexador, buscador, boletins = inicializar_sistema()
 
-# --- Layout da Aplicação ---
-st.title("💧 APAC Search Engine")
-st.markdown("Motor de Recuperação de Informação para dados hidrometeorológicos da **APAC** (Agência Pernambucana de Águas e Clima).")
 
-# Barra lateral com estatísticas do sistema (Conceitos da disciplina)
-st.sidebar.header("📊 Estatísticas do Índice")
-total_docs, total_termos = indexador.obter_estatisticas()
-st.sidebar.metric("Documentos Indexados", total_docs)
-st.sidebar.metric("Termos no Vocabulário", total_termos)
+# =========================================================
+# FUNÇÃO PARA ENCONTRAR UM TRECHO RELEVANTE
+# =========================================================
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("**Funcionalidades implementadas:**")
-st.sidebar.text("✓ Tokenização & Case-Folding")
-st.sidebar.text("✓ Remoção de Stop Words")
-st.sidebar.text("✓ Normalização (Sem acentos)")
-st.sidebar.text("✓ Índice Invertido Posicional")
+def obter_trecho(texto, termo, tamanho=280):
 
-# Caixa de Pesquisa Principal
-consulta = st.text_input("Digite sua consulta (ex: *chuvas fortes*, *rio capibaribe*, *sertão*):", "")
+    if not texto:
+        return ""
 
-if consulta:
-    st.markdown(f"### Resultados para: *{consulta}*")
-    resultados = buscador.buscar(consulta)
-    
-    if resultados:
-        st.success(f"Foram encontrados {len(resultados)} documento(s) relevante(s).")
-        for doc_id, texto in resultados:
-            with st.container():
-                st.info(f"**Documento ID:** {doc_id}")
-                st.write(f"**Conteúdo:** {texto}")
-                st.markdown("---")
+    texto = " ".join(
+        texto.split()
+    )
+
+    # Procura o termo no texto original,
+    # ignorando maiúsculas/minúsculas.
+    correspondencia = re.search(
+        re.escape(termo),
+        texto,
+        re.IGNORECASE
+    )
+
+    # Se não encontrar, mostra apenas
+    # o começo do documento.
+    if not correspondencia:
+
+        if len(texto) > tamanho:
+            return texto[:tamanho] + "..."
+
+        return texto
+
+    inicio = max(
+        0,
+        correspondencia.start() - 120
+    )
+
+    fim = min(
+        len(texto),
+        correspondencia.end() + 160
+    )
+
+    trecho = texto[inicio:fim]
+
+    if inicio > 0:
+        trecho = "... " + trecho
+
+    if fim < len(texto):
+        trecho += " ..."
+
+    return trecho
+
+
+# =========================================================
+# CABEÇALHO
+# =========================================================
+
+st.title("💧 HydroSearchPE")
+
+st.caption(
+    "Motor de Recuperação de Informação "
+    "para boletins da APAC"
+)
+
+st.write("")
+
+
+# =========================================================
+# ESTATÍSTICAS
+# =========================================================
+
+total_docs, total_termos = (
+    indexador.obter_estatisticas()
+)
+
+col1, col2 = st.columns(2)
+
+with col1:
+    st.metric(
+        "📄 Documentos",
+        total_docs
+    )
+
+with col2:
+    st.metric(
+        "🔤 Termos indexados",
+        total_termos
+    )
+
+
+st.write("")
+
+
+# =========================================================
+# CAMPO DE BUSCA
+# =========================================================
+
+consulta = st.text_input(
+    "Pesquisar nos boletins",
+    placeholder="Digite uma palavra, por exemplo: chuva",
+    label_visibility="visible"
+)
+
+
+# =========================================================
+# RESULTADOS
+# =========================================================
+
+if consulta.strip():
+
+    resultados = buscador.buscar(
+        consulta
+    )
+
+    # ---------------------------------------------
+    # Nenhum resultado
+    # ---------------------------------------------
+
+    if not resultados:
+
+        st.warning(
+            f'Nenhum documento encontrado para "{consulta}".'
+        )
+
     else:
-            st.warning("Nenhum documento encontrado para esta consulta.")
 
-# Seção para visualizar os documentos brutos carregados
-with st.expander("📂 Ver Boletins / Documentos Base da Base de Dados"):
-    for b in boletins:
-        st.markdown(f"**[{b['doc_id']}] {b['titulo']}**")
-        st.text(b['texto'])
-        st.markdown("---")
+        termo = resultados[0]["termo"]
+
+        st.write("")
+
+        st.subheader(
+            f'Resultados para "{termo}"'
+        )
+
+        st.caption(
+            f"{len(resultados)} documento(s) encontrado(s) "
+            "ordenado(s) por relevância."
+        )
+
+        st.write("")
+
+        # -----------------------------------------
+        # Lista de resultados
+        # -----------------------------------------
+
+        for posicao, resultado in enumerate(
+            resultados,
+            start=1
+        ):
+
+            doc_id = resultado["doc_id"]
+
+            texto = resultado["texto"]
+
+            score = resultado["score"]
+
+            metadados = (
+                indexador.obter_metadados(
+                    doc_id
+                )
+            )
+
+            titulo = metadados.get(
+                "titulo",
+                "Documento sem título"
+            )
+
+            arquivo = metadados.get(
+                "arquivo",
+                ""
+            )
+
+            # -------------------------------------
+            # Card
+            # -------------------------------------
+
+            with st.container(
+                border=True
+            ):
+
+                # Título
+                st.markdown(
+                    f"### {posicao}. {titulo}"
+                )
+
+                # Nome do arquivo
+                st.caption(
+                    f"📁 {arquivo}"
+                )
+
+                # Score
+                st.write(
+                    f"**Relevância:** "
+                    f"{score:.6f}"
+                )
+
+                # Trecho
+                trecho = obter_trecho(
+                    texto,
+                    termo
+                )
+
+                st.write(
+                    trecho
+                )
+
+                # ---------------------------------
+                # Botão do PDF
+                # ---------------------------------
+
+                caminho_pdf = None
+
+                for boletim in boletins:
+
+                    if boletim["doc_id"] == doc_id:
+
+                        caminho_pdf = boletim.get(
+                            "caminho"
+                        )
+
+                        break
+
+                if caminho_pdf:
+
+                    try:
+
+                        with open(
+                            caminho_pdf,
+                            "rb"
+                        ) as arquivo_pdf:
+
+                            dados_pdf = (
+                                arquivo_pdf.read()
+                            )
+
+                        st.download_button(
+                            label="📄 Abrir / baixar PDF",
+                            data=dados_pdf,
+                            file_name=arquivo,
+                            mime="application/pdf",
+                            key=f"pdf_{doc_id}"
+                        )
+
+                    except Exception:
+                        st.caption(
+                            "PDF não disponível para visualização."
+                        )
+
+            st.write("")
+
+
+# =========================================================
+# DOCUMENTOS INDEXADOS
+# =========================================================
+
+with st.expander(
+    "📚 Documentos indexados"
+):
+
+    for boletim in boletins:
+
+        st.write(
+            f"📄 **{boletim['titulo']}**"
+        )
+
+        st.caption(
+            boletim["arquivo"]
+        )
+
+
+# =========================================================
+# SOBRE O SISTEMA
+# =========================================================
+
+with st.expander(
+    "ℹ️ Sobre o sistema"
+):
+
+    st.markdown(
+        """
+        O **HydroSearchPE** é um protótipo de
+        Recuperação de Informação desenvolvido
+        utilizando documentos públicos da APAC.
+
+        **Etapas do sistema:**
+
+        1. Coleta dos boletins;
+        2. Extração do texto dos PDFs;
+        3. Pré-processamento;
+        4. Tokenização;
+        5. Remoção de stop words;
+        6. Construção do índice invertido;
+        7. Cálculo de TF-IDF;
+        8. Ranking dos documentos por relevância.
+
+        Atualmente, a busca utiliza uma palavra por vez.
+        """
+    )

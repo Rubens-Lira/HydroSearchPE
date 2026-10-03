@@ -1,86 +1,115 @@
-import os
 import requests
 from bs4 import BeautifulSoup
-import pdfplumber
+from urllib.parse import urljoin
+from pathlib import Path
 
-class APACrawler:
-    def __init__(self, pasta_dados="data/raw_pdfs"):
-        self.pasta_dados = pasta_dados
-        # Cria a pasta de dados se não existir
-        os.makedirs(self.pasta_dados, exist_ok=True)
-        
-        # URL base de exemplo da APAC (página de avisos meteorológicos / boletins)
-        self.url_base = "http://www.apac.pe.gov.br/"
 
-    def extrair_texto_pdf(self, caminho_pdf: str) -> str:
-        """Extrai o texto completo de um arquivo PDF usando pdfplumber."""
-        texto_completo = ""
-        try:
-            with pdfplumber.open(caminho_pdf) as pdf:
-                for pagina in pdf.pages:
-                    texto_pagina = pagina.extract_text()
-                    if texto_pagina:
-                        texto_completo += texto_pagina + "\n"
-        except Exception as e:
-            print(f"Erro ao ler o PDF {caminho_pdf}: {e}")
-        return texto_completo
+URL = "https://www.apac.pe.gov.br/mais/boletins"
 
-    def simular_coleta_boletins(self):
-        """
-        Retorna uma lista de boletins simulados com dados reais do contexto da APAC,
-        para você conseguir testar o indexador imediatamente mesmo sem conexão ativa.
-        """
-        boletins_exemplo = [
-            {
-                "doc_id": 101,
-                "titulo": "Aviso Meteorológico - Chuvas Moderadas a Fortes",
-                "texto": "A APAC emite aviso meteorológico indicando chuvas moderadas a fortes para a Região Metropolitana do Recife e Zona da Mata norte nas próximas 24 horas."
-            },
-            {
-                "doc_id": 102,
-                "titulo": "Boletim Hidrológico - Nível de Rios",
-                "texto": "O monitoramento hidrológico indica elevação no nível do Rio Capibaribe devido às precipitações acumuladas na bacia hidrográfica."
-            },
-            {
-                "doc_id": 103,
-                "titulo": "Alerta de Temperaturas Elevadas",
-                "texto": "Sertão de Pernambuco registra índices de umidade relativa do ar abaixo dos níveis críticos, com temperaturas máximas atingindo 38 graus Celsius."
-            }
-        ]
-        return boletins_exemplo
+# Raiz do projeto HydroSearchPE
+RAIZ_PROJETO = Path(__file__).resolve().parent.parent
 
-    def coletar_do_site(self):
-        """
-        Faz uma requisição HTTP básica para buscar links de boletins ou avisos no site da APAC.
-        """
-        print(f"Acessando o portal da APAC em: {self.url_base} ...")
-        try:
-            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-            response = requests.get(self.url_base, headers=headers, timeout=10)
-            
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.text, 'html.parser')
-                # Exemplo: Procurar por links de notícias ou boletins
-                links = []
-                for a in soup.find_all('a', href=True):
-                    if 'boletim' in a['href'].lower() or 'aviso' in a['href'].lower():
-                        links.append(a['href'])
-                print(f"Conexão bem-sucedida! Encontrados {len(links)} links potenciais.")
-                return links
-            else:
-                print(f"Falha na requisição. Status code: {response.status_code}")
-                return []
-        except Exception as e:
-            print(f"Erro de conexão com o site da APAC (provável bloqueio ou instabilidade): {e}")
-            print("Dica: Utilize dados locais ou simulações para alimentar seu motor de busca.")
-            return []
+# Pasta onde os PDFs serão armazenados
+PASTA_PDFS = RAIZ_PROJETO / "data" / "pdfs"
+PASTA_PDFS.mkdir(parents=True, exist_ok=True)
 
-# --- Bloco de Teste ---
+
+def buscar_boletins():
+
+    resposta = requests.get(URL, timeout=30)
+
+    resposta.raise_for_status()
+
+    soup = BeautifulSoup(resposta.text, "html.parser")
+
+    boletins = []
+
+    for link in soup.find_all("a", href=True):
+
+        titulo = link.get_text(" ", strip=True)
+        href = link["href"]
+
+        url_pdf = urljoin(URL, href)
+
+        if ".pdf" in url_pdf.lower():
+
+            boletins.append({
+                "titulo": titulo,
+                "url": url_pdf
+            })
+
+    return boletins
+
+
+def baixar_pdf(boletim):
+
+    url = boletim["url"]
+
+    # Pega somente o nome do arquivo
+    nome_arquivo = url.split("/")[-1].split("?")[0]
+
+    caminho = PASTA_PDFS / nome_arquivo
+
+    # Se já existir, não baixa novamente
+    if caminho.exists():
+
+        print(f"[JÁ EXISTE] {nome_arquivo}")
+
+        return caminho
+
+    print(f"[BAIXANDO] {nome_arquivo}")
+
+    try:
+
+        resposta = requests.get(
+            url,
+            timeout=60
+        )
+
+        resposta.raise_for_status()
+
+        # Verifica se realmente recebemos um PDF
+        content_type = resposta.headers.get("Content-Type", "")
+
+        print(f"  Status: {resposta.status_code}")
+        print(f"  Content-Type: {content_type}")
+        print(f"  Tamanho: {len(resposta.content) / 1024:.1f} KB")
+
+        caminho.write_bytes(resposta.content)
+
+        print(f"  [SALVO] {caminho}")
+
+        return caminho
+
+    except requests.RequestException as erro:
+
+        print(f"  [ERRO] Não foi possível baixar:")
+        print(f"  {erro}")
+
+        return None
+
+
 if __name__ == "__main__":
-    crawler = APACrawler()
-    
-    print("--- Testando a simulação de boletins da APAC ---")
-    boletins = crawler.simular_coleta_boletins()
-    for b in boletins:
-        print(f"[{b['doc_id']}] {b['titulo']}")
-        print(f"Trecho: {b['texto'][:60]}...\n")
+
+    boletins = buscar_boletins()
+
+    print(f"\nEncontrados: {len(boletins)} PDFs\n")
+
+    for boletim in boletins:
+
+        print("=" * 70)
+
+        print(boletim["titulo"])
+        print(boletim["url"])
+
+        baixar_pdf(boletim)
+
+    print("\n" + "=" * 70)
+
+    print("COLETA FINALIZADA")
+
+    print(f"Pasta dos PDFs: {PASTA_PDFS}")
+
+    arquivos = list(PASTA_PDFS.glob("*.pdf"))
+
+    print(f"PDFs salvos: {len(arquivos)}")
