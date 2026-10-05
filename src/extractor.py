@@ -1,36 +1,36 @@
 from pathlib import Path
 
-from pypdf import PdfReader
+try:
+    from pypdf import PdfReader
+
+    def extrair_texto_pdf(caminho_pdf):
+        leitor = PdfReader(caminho_pdf)
+        paginas = []
+        for pagina in leitor.pages:
+            texto = pagina.extract_text()
+            if texto:
+                paginas.append(texto)
+        return "\n".join(paginas)
+
+except ImportError:
+    import pdfplumber
+
+    def extrair_texto_pdf(caminho_pdf):
+        paginas = []
+        with pdfplumber.open(caminho_pdf) as pdf:
+            for pagina in pdf.pages:
+                texto = pagina.extract_text()
+                if texto:
+                    paginas.append(texto)
+        return "\n".join(paginas)
 
 
-RAIZ_PROJETO = (
-    Path(__file__).resolve().parent.parent
-)
+RAIZ_PROJETO = Path(__file__).resolve().parent.parent
 
 PASTAS_PDFS = [
     RAIZ_PROJETO / "data" / "pdfs",
     RAIZ_PROJETO / "src" / "data" / "pdfs",
 ]
-
-
-def extrair_texto_pdf(caminho_pdf):
-
-    leitor = PdfReader(
-        caminho_pdf
-    )
-
-    paginas = []
-
-    for pagina in leitor.pages:
-
-        texto = pagina.extract_text()
-
-        if texto:
-            paginas.append(texto)
-
-    return "\n".join(
-        paginas
-    )
 
 
 def extrair_boletins():
