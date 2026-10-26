@@ -115,6 +115,46 @@ class Indexador:
             self.indice_invertido[termo].keys()
         )
 
+    def obter_termos_mais_frequentes(self, n: int = 10, min_len: int = 3):
+        """
+        Retorna os N termos mais frequentes no acervo,
+        com base na contagem total no índice invertido.
+        Filtra por tamanho mínimo de caracteres (padrão 3).
+        """
+        frequencias = []
+        for termo, docs in self.indice_invertido.items():
+            if len(termo) < min_len:
+                continue
+            total = sum(len(posicoes) for posicoes in docs.values())
+            frequencias.append((termo, total))
+
+        frequencias.sort(key=lambda item: item[1], reverse=True)
+        return frequencias[:n]
+
+    def obter_distribuicao_categorias(self):
+        """
+        Retorna a contagem de documentos agrupados por tipo/categoria de boletim.
+        """
+        categorias = {}
+        for doc_id, meta in self.metadados.items():
+            nome = meta.get("arquivo", "").lower()
+            if "reservat" in nome:
+                categoria = "Reservatórios e Barragens"
+            elif "pluvio" in nome:
+                categoria = "Pluviométrico (Chuvas)"
+            elif "rio" in nome:
+                categoria = "Monitoramento de Rios"
+            elif "clim" in nome or "previsao" in nome:
+                categoria = "Clima e Previsão"
+            elif "acompanhamento" in nome:
+                categoria = "Acompanhamento Geral"
+            else:
+                categoria = "Outros Boletins"
+
+            categorias[categoria] = categorias.get(categoria, 0) + 1
+
+        return categorias
+
 
 # =========================================================
 # TESTE

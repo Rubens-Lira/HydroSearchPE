@@ -10,6 +10,14 @@ Atualmente, o projeto encontra-se em fase de protótipo, utilizando os **boletin
 
 Novas funcionalidades e fontes de informação serão adicionadas conforme o desenvolvimento do projeto.
 
+## 📊 Recursos Visuais e Análise de RI
+
+O sistema conta com visualizações gráficas interativas integradas:
+- **Ranqueamento de Relevância por TF-IDF:** Gráfico interativo que ilustra o ponto central de RI, comparando o Score TF-IDF dos boletins recuperados para a palavra pesquisada.
+- **Métricas do Modelo Vetorial:** Exibição do TF (frequência no documento), IDF (frequência inversa) e pontuação máxima e média.
+- **Top Termos Mais Recorrentes:** Distribuição das palavras mais frequentes na base da APAC após indexação e remoção de stopwords.
+- **Distribuição de Categorias:** Classificação dos boletins do acervo (Pluviométrico, Rios, Reservatórios, Clima e Previsão).
+
 ## ⚙️ Como executar
 
 ### 1. Clone o repositório

@@ -4,3 +4,5 @@ pypdf
 pdfplumber
 nltk
 streamlit
+pandas
+altair
