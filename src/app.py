@@ -322,10 +322,9 @@ if consulta.strip():
                 .properties(
                     height=max(180, len(df_plot) * 34)
                 )
-                .interactive()
             )
 
-            st.altair_chart(chart_relevancia, use_container_width=True)
+            st.altair_chart(chart_relevancia, width="stretch")
 
             # Explicação didática dos conceitos de RI
             with st.expander("🎓 Como o Modelo de Recuperação calcula essa relevância?"):
@@ -497,10 +496,9 @@ else:
                     ]
                 )
                 .properties(height=320)
-                .interactive()
             )
 
-            st.altair_chart(chart_termos, use_container_width=True)
+            st.altair_chart(chart_termos, width="stretch")
 
         with tab_categorias:
 
@@ -533,10 +531,9 @@ else:
                     ]
                 )
                 .properties(height=260)
-                .interactive()
             )
 
-            st.altair_chart(chart_cat, use_container_width=True)
+            st.altair_chart(chart_cat, width="stretch")
 
     st.write("")
 
